@@ -1,9 +1,15 @@
 _Projeto Integrador II - Engenharia Elétrica_
 
-**Analisador de qualidade de ar**
+**Analisador de qualidade de ar:**
 
 Grupo:
-_- Anderson;_
-_- Luiza;_
-_- Pedro Henrique;_
-_- Patrick._
+
+_- Anderson Augusto Wittke_
+
+_- Luiza Foggiatto Marinho_
+
+_- Pedro Henrique Hundertmark_
+
+_- Patrick de Barcellos Baelz_
+
+
