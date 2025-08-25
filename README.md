@@ -1,15 +1,17 @@
-_Projeto Integrador II - Engenharia Elétrica_
+# _Projeto Integrador II - Engenharia Elétrica_
 
-**Analisador de qualidade de ar:**
+## **Analisador de qualidade de ar:**
 
-Grupo:
+• Desenvolvido para medir a quantidade de gases presentes no ambiente de uma sala, alertar possíveis situações de risco e garantir a qualidade do ar ambiente para o usuário.
 
-_- Anderson Augusto Wittke_
+### Grupo:
 
-_- Luiza Foggiatto Marinho_
+_- Anderson Augusto Wittke;_
 
-_- Pedro Henrique Hundertmark_
+_- Luiza Foggiatto Marinho;_
 
-_- Patrick de Barcellos Baelz_
+_- Pedro Henrique Hundertmark;_
+
+_- Patrick de Barcellos Baelz._
 
 
