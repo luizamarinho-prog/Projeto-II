@@ -1,0 +1,211 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <DHT.h>
+#include <DHT_U.h>
+
+// --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
+const char* ssid = "OI FIBRA 2G";
+const char* password = "YDn46Rvt";
+// ----------------------------------------------------
+
+// --- Configurações do seu código original ---
+#define MQ2pin 34
+#define DHTPIN 2
+#define DHTTYPE DHT22
+
+
+// --- Objetos dos Sensores e Servidor Web ---
+DHT dht(DHTPIN, DHTTYPE);
+WebServer server(80);
+
+// --- Variáveis Globais para os dados dos sensores ---
+// O loop() irá atualizá-las e a página web irá lê-las.
+float sensorValue = 0;
+float temperatura = 0;
+float umidade = 0;
+bool alarmeLigado = false;
+
+
+// Função que constrói e envia a página HTML para o navegador
+void handleRoot() {
+  String page = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard ESP32</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <meta http-equiv='refresh' content='5'>
+    <style>
+        html {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: inline-block;
+            text-align: center;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+        }
+        .header {
+            background-color: #005c78;
+            color: white;
+            padding: 20px;
+            font-size: 1.8rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .card-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            padding: 25px;
+            margin: 15px;
+            width: 250px;
+            transition: transform .2s;
+        }
+        .card:hover {
+            transform: scale(1.05);
+        }
+        .card-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .sensor-value {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #005c78;
+        }
+        .units {
+            font-size: 1.5rem;
+            color: #777;
+        }
+        .status {
+            font-size: 2.2rem;
+            font-weight: bold;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .status-on {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .status-off {
+            background-color: #2ecc71;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class='header'>
+        Dashboard de Monitoramento
+    </div>
+
+    <div class='card-container'>
+        <div class='card'>
+            <p class='card-title'> Temperatura</p>
+            <p><span class='sensor-value'>%TEMPERATURA%</span><span class='units'>&deg;C</span></p>
+        </div>
+        <div class='card'>
+            <p class='card-title'> Umidade</p>
+            <p><span class='sensor-value'>%UMIDADE%</span><span class='units'>%</span></p>
+        </div>
+        <div class='card'>
+            <p class='card-title'> Gás (MQ-2)</p>
+            <p><span class='sensor-value'>%GAS%</span><span class='units'></span></p>
+        </div>
+        <div class='card'>
+            <p class='card-title'> Alarme</p>
+            <p class='status %STATUS_CLASS%'>%STATUS_TEXT%</p>
+        </div>
+    </div>
+</body>
+</html>
+)rawliteral";
+
+  // Substitui os placeholders pelos valores atuais dos sensores
+  page.replace("%TEMPERATURA%", String(temperatura, 1));
+  page.replace("%UMIDADE%", String(umidade, 1));
+  page.replace("%GAS%", String((int)sensorValue));
+  
+  if (alarmeLigado) {
+    page.replace("%STATUS_CLASS%", "status-on");
+    page.replace("%STATUS_TEXT%", "ATIVADO");
+  } else {
+    page.replace("%STATUS_CLASS%", "status-off");
+    page.replace("%STATUS_TEXT%", "Normal");
+  }
+  
+  server.send(200, "text/html", page);
+}
+
+void setup() {
+  // SEU CÓDIGO DE SETUP ORIGINAL
+  Serial.begin(9600);
+  Serial.println("MQ2 warming up!");
+  pinMode(25, OUTPUT);
+  pinMode(DHTPIN, INPUT); // Mantido como no seu original
+  dht.begin();
+  delay(20000); // Seu delay de aquecimento original
+
+  // PARTE ADICIONADA PARA CONECTAR AO WI-FI
+  Serial.println("\nConectando ao WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Conectado!");
+  Serial.print("Acesse a interface em: http://");
+  Serial.println(WiFi.localIP());
+
+  // PARTE ADICIONADA PARA INICIAR O SERVIDOR
+  server.on("/", handleRoot);
+  server.begin();
+  
+  Serial.println("Testando o buzzer por 1 segundo...");
+  digitalWrite(25, HIGH);
+  delay(1000);
+  digitalWrite(25, LOW);
+}
+
+
+void loop() {
+  // ADIÇÃO MÍNIMA: Apenas esta linha foi adicionada para o servidor web.
+  // Ela verifica se o navegador pediu a página. Não afeta sua lógica.
+  server.handleClient();
+
+  // --------------------------------------------------
+  // AQUI COMEÇA SEU CÓDIGO ORIGINAL, SEM NENHUMA MUDANÇA
+  // --------------------------------------------------
+
+  sensorValue = analogRead(MQ2pin);
+  umidade = dht.readHumidity();
+  temperatura = dht.readTemperature();
+  
+  Serial.print("Sensor Value: ");
+  Serial.println(sensorValue);
+  
+  if(sensorValue >= 100){
+    digitalWrite(25, HIGH);
+    alarmeLigado = true; // Apenas informa o status para a página web
+  }
+  else{
+    digitalWrite(25, LOW);
+    alarmeLigado = false; // Apenas informa o status para a página web
+  }
+  
+  Serial.print("Temp: ");
+  Serial.print(temperatura);
+  Serial.print("°C\n");
+  Serial.print("Umidade: ");
+  Serial.print(umidade);
+  Serial.print("%\n");
+  
+  delay(500); // Seu delay original
+}
