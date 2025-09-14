@@ -1,0 +1,279 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <DHT.h>
+#include <math.h> // Biblioteca necessária para os cálculos de PPM
+
+// --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
+const char* ssid = "OI FIBRA 2G";
+const char* password = "YDn46Rvt";
+// ----------------------------------------------------
+
+// --- Configurações dos Pinos ---
+#define MQ2_PIN      34
+#define DHT_PIN      2
+#define BUZZER_PIN   4
+#define DHT_TYPE     DHT22
+
+// --- NOVAS CONSTANTES PARA O CÁLCULO DE PPM ---
+// O valor do resistor de carga (RL) na sua placa MQ-2. Geralmente é 5K Ohms.
+#define RL_VALOR 5.0
+// Parâmetros da curva do sensor para Gás GLP (Butano/Propano).
+// Esses valores são obtidos do datasheet e podem precisar de ajuste fino.
+#define CURVA_A 231.88
+#define CURVA_B -2.259
+
+// --- Limiares de PPM para o alarme e interface ---
+const int PPM_LIMIAR_ATENCAO = 300; // PPM para mostrar "Atenção"
+const int PPM_LIMIAR_PERIGO  = 450; // PPM para ativar o buzzer e mostrar "Perigo"
+
+// --- Objetos dos Sensores e Servidor Web ---
+DHT dht(DHT_PIN, DHT_TYPE);
+WebServer server(80);
+
+// --- Variáveis Globais ---
+float temperatura = 0.0;
+float umidade = 0.0;
+float ppm = 0.0;
+float R0 = 0.0; // Valor da resistência do sensor em ar limpo
+bool alarmeLigado = false;
+
+// --- FUNÇÕES ADICIONADAS PARA O CÁLCULO DE PPM ---
+
+/*
+ * Calcula a resistência do sensor (Rs) com base na leitura analógica.
+ */
+float calcularRs(int adc_valor) {
+  // Converte o valor do ADC (0-4095) para tensão (0-3.3V)
+  float v_saida = adc_valor * (3.3 / 4095.0);
+  // Calcula Rs usando a fórmula do divisor de tensão: Rs = (Vin * RL / Vout) - RL
+  // Para o ESP32, Vin = 3.3V
+  return (3.3 * RL_VALOR / v_saida) - RL_VALOR;
+}
+
+/*
+ * Calcula o valor de R0 para calibração.
+ * Deve ser chamado com o sensor em ambiente de ar limpo.
+ */
+void calibrarMQ2() {
+  Serial.println("Calibrando o sensor MQ-2 em ar limpo...");
+  Serial.println("Por favor, aguarde 20 segundos. Não exponha o sensor a gases.");
+  
+  float rs_soma = 0.0;
+  // Faz 50 leituras para obter uma média estável
+  for (int i = 0; i < 50; i++) {
+    rs_soma += calcularRs(analogRead(MQ2_PIN));
+    delay(400);
+    Serial.print(".");
+  }
+  Serial.println("\nCalibração concluída!");
+  
+  R0 = rs_soma / 50.0;
+  Serial.print("Valor de R0 (resistência em ar limpo) = ");
+  Serial.println(R0);
+}
+
+
+// Função que constrói e envia a página HTML para o navegador
+void handleRoot() {
+  String page = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard ESP32</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <meta http-equiv='refresh' content='5'>
+    <style>
+        html {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: inline-block;
+            text-align: center;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+        }
+        .header {
+            background-color: #005c78;
+            color: white;
+            padding: 20px;
+            font-size: 1.8rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .card-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            padding: 25px;
+            margin: 15px;
+            width: 250px;
+            transition: transform .2s;
+        }
+        .card:hover {
+            transform: scale(1.05);
+        }
+        .card-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .sensor-value {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #005c78;
+        }
+        .units {
+            font-size: 1.5rem;
+            color: #777;
+        }
+        .status {
+            font-size: 1.8rem; /* Tamanho ajustado */
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        .status-on {
+            background-color: #e74c3c; /* Vermelho */
+            color: white;
+        }
+        .status-off {
+            background-color: #2ecc71; /* Verde */
+            color: white;
+        }
+        .status-warn {
+            background-color: #f39c12; /* Laranja */
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class='header'>
+        Dashboard de Monitoramento
+    </div>
+
+    <div class='card-container'>
+        <div class='card'>
+            <p class='card-title'>Temperatura</p>
+            <p><span class='sensor-value'>%TEMPERATURA%</span><span class='units'>&deg;C</span></p>
+        </div>
+        <div class='card'>
+            <p class='card-title'>Umidade</p>
+            <p><span class='sensor-value'>%UMIDADE%</span><span class='units'>%</span></p>
+        </div>
+        <div class='card'>
+            <p class='card-title'>Gás Inflamável</p>
+            <p><span class='sensor-value'>%GAS_PPM%</span><span class='units'>ppm</span></p>
+            <p class='status %QUALIDADE_AR_CLASS%'>%QUALIDADE_AR_TEXT%</p>
+        </div>
+        <div class='card'>
+            <p class='card-title'>Alarme Sonoro</p>
+            <p class='status %STATUS_CLASS%'>%STATUS_TEXT%</p>
+        </div>
+    </div>
+</body>
+</html>
+)rawliteral";
+
+  // Substitui os placeholders de Temperatura e Umidade
+  page.replace("%TEMPERATURA%", String(temperatura, 1));
+  page.replace("%UMIDADE%", String(umidade, 1));
+  page.replace("%GAS_PPM%", String((int)ppm));
+  
+  // Lógica para o status do Alarme Sonoro
+  if (alarmeLigado) {
+    page.replace("%STATUS_CLASS%", "status-on");
+    page.replace("%STATUS_TEXT%", "ATIVADO");
+  } else {
+    page.replace("%STATUS_CLASS%", "status-off");
+    page.replace("%STATUS_TEXT%", "Normal");
+  }
+
+  // Lógica para o status da Qualidade do Ar
+  if (ppm >= PPM_LIMIAR_PERIGO) {
+    page.replace("%QUALIDADE_AR_CLASS%", "status-on");
+    page.replace("%QUALIDADE_AR_TEXT%", "PERIGO");
+  } else if (ppm >= PPM_LIMIAR_ATENCAO) {
+    page.replace("%QUALIDADE_AR_CLASS%", "status-warn");
+    page.replace("%QUALIDADE_AR_TEXT%", "ATENÇÃO");
+  } else {
+    page.replace("%QUALIDADE_AR_CLASS%", "status-off");
+    page.replace("%QUALIDADE_AR_TEXT%", "BOM");
+  }
+  
+  server.send(200, "text/html", page);
+}
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(BUZZER_PIN, OUTPUT);
+  dht.begin();
+  
+  // Calibra o sensor MQ-2 em ar limpo ao iniciar
+  calibrarMQ2();
+
+  // Conexão com o Wi-Fi
+  Serial.println("\nConectando ao WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Conectado!");
+  Serial.print("Acesse a interface em: http://");
+  Serial.println(WiFi.localIP());
+
+  // Inicia o servidor web
+  server.on("/", handleRoot);
+  server.begin();
+  
+  Serial.println("Testando o buzzer por 1 segundo...");
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(1000);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+
+void loop() {
+  server.handleClient();
+
+  // --- Leitura e verificação do sensor DHT22 ---
+  float novaUmidade = dht.readHumidity();
+  float novaTemperatura = dht.readTemperature();
+
+  if (!isnan(novaUmidade) && !isnan(novaTemperatura)) {
+    umidade = novaUmidade;
+    temperatura = novaTemperatura;
+  } else {
+    Serial.println("Falha ao ler o sensor DHT!");
+  }
+  
+  // --- Leitura e cálculo do PPM do sensor MQ-2 ---
+  float rs_atual = calcularRs(analogRead(MQ2_PIN));
+  float razao = rs_atual / R0;
+  ppm = CURVA_A * pow(razao, CURVA_B);
+
+  // --- Lógica do alarme de gás com base no PPM ---
+  if(ppm >= PPM_LIMIAR_PERIGO){
+    digitalWrite(BUZZER_PIN, HIGH);
+    alarmeLigado = true;
+  }
+  else{
+    digitalWrite(BUZZER_PIN, LOW);
+    alarmeLigado = false;
+  }
+  
+  // --- Imprime os valores no Monitor Serial ---
+  Serial.print("Temp: " + String(temperatura) + "°C");
+  Serial.print(" | Umidade: " + String(umidade) + "%");
+  Serial.print(" | Gás: " + String(ppm) + " ppm");
+  Serial.println(" | Alarme: " + String(alarmeLigado ? "ATIVADO" : "Normal"));
+  
+  delay(2000); // Delay de 2 segundos para leituras mais estáveis
+}
