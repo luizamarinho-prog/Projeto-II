@@ -14,4 +14,4 @@ _- Pedro Henrique Hundertmark;_
 
 _- Patrick de Barcellos Baelz._
 
-
+<img width="1350" height="1080" alt="Proj_Int_II_-_Capa" src="https://github.com/user-attachments/assets/fe4f2918-77be-437d-b64d-fd9764dc0e18" />
