@@ -1,0 +1,122 @@
+#include <WiFi.h>
+#include <sshesper.h> // Biblioteca do Cliente SSH
+#include <DHT.h>
+#include <math.h>
+
+// --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
+const char* ssid = "OI FIBRA 2G";
+const char* password = "YDn46Rvt";
+// ------------------------------------------------
+
+// --- PREENCHA COM OS DADOS DO SEU SERVIDOR SSH ---
+const char* ssh_host = "SEU_IP_OU_DOMINIO_DO_SERVIDOR";
+const uint16_t ssh_port = 22; // Porta padrão do SSH
+const char* ssh_user = "SEU_USUARIO_NO_SERVIDOR";
+const char* ssh_password = "SUA_SENHA_DO_SERVIDOR";
+// ------------------------------------------------
+
+// --- Configurações dos Pinos e Sensores ---
+#define MQ2_PIN      34
+#define DHT_PIN      2
+#define BUZZER_PIN   25
+#define DHT_TYPE     DHT22
+
+// --- Constantes para o cálculo de PPM ---
+#define RL_VALOR 5.0
+#define CURVA_A 231.88
+#define CURVA_B -2.259
+const int PPM_LIMIAR_PERIGO = 450;
+
+// --- Objetos e Variáveis Globais ---
+DHT dht(DHT_PIN, DHT_TYPE);
+sshesper client; // Objeto do cliente SSH
+float R0 = 0.0;
+const long intervaloDeEnvio = 60000; // Envia dados a cada 60 segundos
+unsigned long tempoAnterior = 0;
+
+// --- FUNÇÕES DE CÁLCULO E CALIBRAÇÃO (Sem alterações) ---
+float calcularRs(int adc_valor) {
+  float v_saida = adc_valor * (3.3 / 4095.0);
+  return (3.3 * RL_VALOR / v_saida) - RL_VALOR;
+}
+
+void calibrarMQ2() {
+  Serial.println("Calibrando o sensor MQ-2 em ar limpo...");
+  float rs_soma = 0.0;
+  for (int i = 0; i < 50; i++) { rs_soma += calcularRs(analogRead(MQ2_PIN)); delay(100); }
+  R0 = rs_soma / 50.0;
+  Serial.print("Calibração concluída! R0 = ");
+  Serial.println(R0);
+}
+
+// --- FUNÇÃO PARA ENVIAR OS DADOS VIA SSH ---
+void enviarDadosPorSSH() {
+  float temperatura = dht.readTemperature();
+  float umidade = dht.readHumidity();
+  float ppm = CURVA_A * pow(calcularRs(analogRead(MQ2_PIN)) / R0, CURVA_B);
+
+  if (isnan(temperatura) || isnan(umidade)) {
+    Serial.println("Falha ao ler o sensor DHT! Abortando envio.");
+    return;
+  }
+
+  Serial.printf("Valores a serem enviados: Temp: %.1fC, Umidade: %.1f%%, Gas: %.0fppm\n", temperatura, umidade, ppm);
+
+  // Monta o comando a ser executado no servidor
+  // MUDE 'seu_usuario' para o caminho correto do seu script!
+  String command = "/home/seu_usuario/receive_data.sh " + String(temperatura, 1) + " " + String(umidade, 1) + " " + String((int)ppm);
+
+  Serial.println("Iniciando conexão com o servidor SSH...");
+  if (client.connect(ssh_host, ssh_port, ssh_user, ssh_password)) {
+    Serial.println("Conectado! Executando comando remoto...");
+    String result = client.execute(command.c_str());
+    Serial.println("Comando executado. Resposta do servidor (se houver):");
+    Serial.println(result);
+    client.stop();
+    Serial.println("Conexão SSH fechada.");
+  } else {
+    Serial.println("ERRO: Falha ao conectar via SSH.");
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(BUZZER_PIN, OUTPUT);
+  dht.begin();
+  
+  Serial.println("Aquecendo o sensor por 20 segundos...");
+  delay(20000);
+  calibrarMQ2();
+  
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando ao Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWi-Fi conectado!");
+  Serial.print("Endereço IP do ESP32: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  unsigned long tempoAtual = millis();
+
+  if (tempoAtual - tempoAnterior >= intervaloDeEnvio) {
+    tempoAnterior = tempoAtual;
+    if (WiFi.status() == WL_CONNECTED) {
+      enviarDadosPorSSH();
+    } else {
+      Serial.println("Wi-Fi desconectado.");
+    }
+  }
+
+  float ppm_agora = CURVA_A * pow(calcularRs(analogRead(MQ2_PIN)) / R0, CURVA_B);
+  if (ppm_agora >= PPM_LIMIAR_PERIGO) {
+    digitalWrite(BUZZER_PIN, HIGH);
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+  }
+  
+  delay(100);
+}
