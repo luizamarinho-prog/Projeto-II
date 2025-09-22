@@ -4,21 +4,21 @@
 #include <math.h>
 
 // --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
-const char* ssid = "OI FIBRA 2G";
-const char* password = "YDn46Rvt";
+const char* ssid = "A16";
+const char* password = "123456";
 // ------------------------------------------------
 
 // --- PREENCHA COM OS DADOS DO SEU SERVIDOR SSH ---
-const char* ssh_host = "SEU_IP_OU_DOMINIO_DO_SERVIDOR";
-const uint16_t ssh_port = 22; // Porta padrão do SSH
-const char* ssh_user = "SEU_USUARIO_NO_SERVIDOR";
-const char* ssh_password = "SUA_SENHA_DO_SERVIDOR";
+const char* ssh_host = 200.18.75.25";
+const uint16_t ssh_port = 3210; // Porta padrão do SSH
+const char* ssh_user = "anderson";
+const char* ssh_password = "anderson123#";
 // ------------------------------------------------
 
 // --- Configurações dos Pinos e Sensores ---
 #define MQ2_PIN      34
 #define DHT_PIN      2
-#define BUZZER_PIN   25
+#define BUZZER_PIN   4
 #define DHT_TYPE     DHT22
 
 // --- Constantes para o cálculo de PPM ---
