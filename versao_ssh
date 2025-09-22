@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include <sshesper.h> // Biblioteca do Cliente SSH
+#include <libssh_esp32.h> // Biblioteca do Cliente SSH
 #include <DHT.h>
 #include <math.h>
 
