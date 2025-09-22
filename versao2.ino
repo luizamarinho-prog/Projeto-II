@@ -4,8 +4,8 @@
 #include <DHT_U.h>
 
 // --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
-const char* ssid = "OI FIBRA 2G";
-const char* password = "YDn46Rvt";
+const char* ssid = "A16";
+const char* password = "12345678";
 // ----------------------------------------------------
 
 // --- Configurações do seu código original ---
