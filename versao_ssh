@@ -9,7 +9,7 @@ const char* password = "123456";
 // ------------------------------------------------
 
 // --- PREENCHA COM OS DADOS DO SEU SERVIDOR SSH ---
-const char* ssh_host = 200.18.75.25";
+const char* ssh_host = "200.18.75.25";
 const uint16_t ssh_port = 3210; // Porta padrão do SSH
 const char* ssh_user = "anderson";
 const char* ssh_password = "anderson123#";
