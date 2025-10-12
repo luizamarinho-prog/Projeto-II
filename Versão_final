@@ -1,0 +1,148 @@
+#include <WiFi.h>
+// Inclui a biblioteca do cliente InfluxDB
+#include <InfluxDbClient.h>
+#include <DHT.h>
+#include <math.h>
+
+// --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
+const char* ssid = "A16";
+const char* password = "12345678";
+// ------------------------------------------------
+
+// --- PREENCHA COM OS DADOS DO SEU SERVIDOR INFLUXDB v2 ---
+#define INFLUXDB_URL "http://200.18.75.25:3211" // URL do seu servidor InfluxDB (porta padrão é 8086)
+#define INFLUXDB_TOKEN "3gPzXrsHEvj90KXsG2rqezxle1K2TphwILapyOXwkif_KfwanBXl3C3DDwV3naBkVJtvI4OViph_mYQJZ5_qAA==" // Coloque o Token gerado no InfluxDB
+#define INFLUXDB_ORG "ufsm" // Coloque o nome da sua Organização
+#define INFLUXDB_BUCKET "esp32-dados" // Coloque o nome do seu Bucket de dados
+
+// --- Configurações dos Pinos e Sensores ---
+#define MQ2_PIN       34
+#define DHT_PIN       2
+#define BUZZER_PIN    4
+#define DHT_TYPE      DHT22
+
+// --- Constantes para o cálculo de PPM ---
+#define RL_VALOR 5.0
+#define CURVA_A 231.88
+#define CURVA_B -2.259
+const int PPM_LIMIAR_PERIGO = 450;
+
+// --- Objetos e Variáveis Globais ---
+DHT dht(DHT_PIN, DHT_TYPE);
+float R0 = 0.0;
+const long intervaloDeEnvio = 2000; // Envia dados a cada 60 segundos
+unsigned long tempoAnterior = 0;
+
+// Cliente InfluxDB
+InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
+
+// Objeto para armazenar um ponto de dado (medição)
+// "ambiente_monitorado" é o nome da 'measurement' que aparecerá no InfluxDB
+Point sensorReadings("ambiente_monitorado");
+
+// --- FUNÇÕES DE CÁLCULO E CALIBRAÇÃO (Sem alterações) ---
+float calcularRs(int adc_valor) {
+  float v_saida = adc_valor * (3.3 / 4095.0);
+  return (3.3 * RL_VALOR / v_saida) - RL_VALOR;
+}
+
+void calibrarMQ2() {
+  Serial.println("Calibrando o sensor MQ-2 em ar limpo...");
+  float rs_soma = 0.0;
+  for (int i = 0; i < 50; i++) { rs_soma += calcularRs(analogRead(MQ2_PIN)); delay(100); }
+  R0 = rs_soma / 50.0;
+  Serial.print("Calibração concluída! R0 = ");
+  Serial.println(R0);
+}
+
+// --- NOVA FUNÇÃO PARA ENVIAR DADOS PARA O INFLUXDB ---
+void enviarDadosInfluxDB() {
+  float temperatura = dht.readTemperature();
+  float umidade = dht.readHumidity();
+  float ppm = CURVA_A * pow(calcularRs(analogRead(MQ2_PIN)) / R0, CURVA_B);
+
+  if (isnan(temperatura) || isnan(umidade)) {
+    Serial.println("Falha ao ler o sensor DHT! Abortando envio.");
+    return;
+  }
+
+  // Limpa os campos de dados anteriores antes de adicionar novos
+  sensorReadings.clearFields();
+
+  // Adiciona os valores lidos como "fields" ao nosso ponto de dado
+  // 'temperatura', 'umidade' e 'gas_ppm' serão os nomes dos campos no InfluxDB
+  sensorReadings.addField("temperatura", temperatura);
+  sensorReadings.addField("umidade", umidade);
+  sensorReadings.addField("gas_ppm", ppm);
+
+  Serial.println("Enviando dados para o InfluxDB...");
+  Serial.print("  > Temperatura: "); Serial.println(temperatura);
+  Serial.print("  > Umidade: "); Serial.println(umidade);
+  Serial.print("  > Gás (PPM): "); Serial.println(ppm);
+
+  // Escreve o ponto de dado no bucket do InfluxDB
+  if (!client.writePoint(sensorReadings)) {
+    Serial.print("ERRO ao enviar para o InfluxDB: ");
+    Serial.println(client.getLastErrorMessage()); // Imprime o erro detalhado
+  } else {
+    Serial.println("Dados enviados com sucesso!");
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(BUZZER_PIN, OUTPUT);
+  dht.begin();
+
+  Serial.println("Aquecendo o sensor por 20 segundos...");
+  delay(20000);
+  calibrarMQ2();
+
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando ao Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWi-Fi conectado!");
+  Serial.print("Endereço IP do ESP32: ");
+  Serial.println(WiFi.localIP());
+
+  // Adiciona uma "tag" ao nosso ponto de dados. Tags são usadas para filtrar
+  // e agrupar dados. É ótimo para identificar a origem.
+  sensorReadings.addTag("device", "ESP32_Sala_01");
+
+  // Verifica a conexão com o servidor InfluxDB
+  Serial.print("Verificando conexão com InfluxDB... ");
+  if (client.validateConnection()) {
+    Serial.println("Conexão bem-sucedida!");
+  } else {
+    Serial.print("Falha na conexão com InfluxDB: ");
+    Serial.println(client.getLastErrorMessage());
+  }
+}
+
+void loop() {
+  unsigned long tempoAtual = millis();
+
+  // Lógica de tempo para envio periódico
+  if (tempoAtual - tempoAnterior >= intervaloDeEnvio) {
+    tempoAnterior = tempoAtual;
+    if (WiFi.status() == WL_CONNECTED) {
+      enviarDadosInfluxDB(); // Chama a nova função de envio
+    } else {
+      Serial.println("Wi-Fi desconectado. Tentando reconectar...");
+      WiFi.reconnect();
+    }
+  }
+
+  // Lógica do alarme de gás (sem alterações)
+  float ppm_agora = CURVA_A * pow(calcularRs(analogRead(MQ2_PIN)) / R0, CURVA_B);
+  if (ppm_agora >= PPM_LIMIAR_PERIGO) {
+    digitalWrite(BUZZER_PIN, HIGH);
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+  }
+
+  delay(100);
+}
