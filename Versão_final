@@ -30,7 +30,7 @@ const int PPM_LIMIAR_PERIGO = 450;
 // --- Objetos e Variáveis Globais ---
 DHT dht(DHT_PIN, DHT_TYPE);
 float R0 = 0.0;
-const long intervaloDeEnvio = 2000; // Envia dados a cada 60 segundos
+const long intervaloDeEnvio = 2000; // Envia dados a cada 2 segundos
 unsigned long tempoAnterior = 0;
 
 // Cliente InfluxDB
