@@ -1,6 +1,6 @@
 # _Projeto Integrador II - Engenharia Elétrica_
 
-## **Analisador de qualidade de ar:**
+## **Desenvolvimento de sistema de detecção de vazamento de gás GLP e Hidrogênio:**
 
 • Desenvolvido para medir a quantidade de gases presentes no ambiente de uma sala, alertar possíveis situações de risco e garantir a qualidade do ar ambiente para o usuário.
 
