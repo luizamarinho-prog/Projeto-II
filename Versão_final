@@ -5,13 +5,13 @@
 #include <math.h>
 
 // --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
-const char* ssid = "A16";
-const char* password = "12345678";
+const char* ssid = "xxxx";
+const char* password = "xxxxx";
 // ------------------------------------------------
 
 // --- PREENCHA COM OS DADOS DO SEU SERVIDOR INFLUXDB v2 ---
-#define INFLUXDB_URL "http://200.18.75.25:3211" // URL do seu servidor InfluxDB (porta padrão é 8086)
-#define INFLUXDB_TOKEN "3gPzXrsHEvj90KXsG2rqezxle1K2TphwILapyOXwkif_KfwanBXl3C3DDwV3naBkVJtvI4OViph_mYQJZ5_qAA==" // Coloque o Token gerado no InfluxDB
+#define INFLUXDB_URL "http://xxxxxxxxxxxx" // URL do seu servidor InfluxDB (porta padrão é 8086)
+#define INFLUXDB_TOKEN "xxxxxxxxxxxx" // Coloque o Token gerado no InfluxDB
 #define INFLUXDB_ORG "ufsm" // Coloque o nome da sua Organização
 #define INFLUXDB_BUCKET "esp32-dados" // Coloque o nome do seu Bucket de dados
 
