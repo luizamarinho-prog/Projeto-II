@@ -4,16 +4,8 @@
 #include <math.h>
 
 // --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
-const char* ssid = "A16";
-const char* password = "123456";
-// ------------------------------------------------
-
-// --- PREENCHA COM OS DADOS DO SEU SERVIDOR SSH ---
-const char* ssh_host = "200.18.75.25";
-const uint16_t ssh_port = 3210; // Porta padrão do SSH
-const char* ssh_user = "anderson";
-const char* ssh_password = "anderson123#";
-// ------------------------------------------------
+const char* ssid = "xxxx";
+const char* password = "xxxxx";
 
 // --- Configurações dos Pinos e Sensores ---
 #define MQ2_PIN      34
