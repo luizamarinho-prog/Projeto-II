@@ -4,8 +4,8 @@
 #include <math.h> // Biblioteca necessária para os cálculos de PPM
 
 // --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
-const char* ssid = "OI FIBRA 2G";
-const char* password = "YDn46Rvt";
+const char* ssid = "xxxx";
+const char* password = "xxx";
 // ----------------------------------------------------
 
 // --- Configurações dos Pinos ---
