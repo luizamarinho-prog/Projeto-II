@@ -4,8 +4,8 @@
 #include <DHT_U.h>
 
 // --- PREENCHA COM AS SUAS CREDENCIAIS DE WI-FI ---
-const char* ssid = "A16";
-const char* password = "12345678";
+const char* ssid = "xxxx";
+const char* password = "xxxxx";
 // ----------------------------------------------------
 
 // --- Configurações do seu código original ---
